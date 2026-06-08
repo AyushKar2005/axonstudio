@@ -10,7 +10,7 @@ The project runs completely client-side using TensorFlow.js, so users do not nee
 
 ## Preview
 
-> Add screenshots or GIFs here after deployment.
+
 
 ```md
 ![Axon Studio Landing Page](./public/screenshots/landing.png)
@@ -21,15 +21,6 @@ The project runs completely client-side using TensorFlow.js, so users do not nee
 
 ---
 
-## Live Demo
-
-Deployment link will go here after Vercel deployment.
-
-```txt
-https://axonstudio.vercel.app
-```
-
----
 
 ## Repository
 
