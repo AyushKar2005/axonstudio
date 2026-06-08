@@ -1,0 +1,150 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
+
+const links = [
+  { href: "/", label: "Home" },
+  { href: "/playground", label: "Playground" },
+  { href: "/docs", label: "Docs" },
+  { href: "/examples", label: "Examples" },
+  { href: "/experiments", label: "Experiments" },
+];
+
+export default function SiteNav() {
+  const pathname = usePathname();
+
+  return (
+    <motion.nav
+      initial={{ y: -16, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      style={{
+        height: 68,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 clamp(18px, 4vw, 52px)",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        background: "rgba(8,8,10,0.82)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        position: "sticky",
+        top: 0,
+        zIndex: 80,
+      }}
+    >
+      {/* Logo */}
+      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+        <motion.div
+          whileHover={{ scale: 1.08, rotate: 6 }}
+          transition={{ type: "spring", stiffness: 400, damping: 18 }}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 9,
+            background: "linear-gradient(135deg,#7c3aed,#ec4899)",
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "0 8px 24px rgba(124,58,237,0.28)",
+            flexShrink: 0,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+            <circle cx="3" cy="7" r="2" fill="white" />
+            <circle cx="11" cy="3" r="1.5" fill="white" opacity="0.72" />
+            <circle cx="11" cy="11" r="1.5" fill="white" opacity="0.72" />
+            <line x1="5" y1="6.5" x2="9.5" y2="3.5" stroke="white" strokeWidth="1.2" />
+            <line x1="5" y1="7.5" x2="9.5" y2="10.5" stroke="white" strokeWidth="1.2" />
+          </svg>
+        </motion.div>
+        <span style={{ color: "#f4f4f5", fontWeight: 760, fontSize: 15, letterSpacing: "-0.03em" }}>
+          axon studio
+        </span>
+      </Link>
+
+      {/* Links */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {links.map((link, i) => {
+          const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+          return (
+            <motion.div
+              key={link.href}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 * i, duration: 0.35, ease: "easeOut" }}
+              style={{ position: "relative" }}
+            >
+              <Link
+                href={link.href}
+                style={{
+                  display: "block",
+                  padding: "6px 12px",
+                  color: active ? "#f4f4f5" : "#5a5a68",
+                  textDecoration: "none",
+                  fontSize: 13,
+                  fontWeight: active ? 650 : 500,
+                  letterSpacing: "-0.01em",
+                  borderRadius: 8,
+                  transition: "color 0.2s",
+                  position: "relative",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#a1a1aa"; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#5a5a68"; }}
+              >
+                {link.label}
+                {active && (
+                  <motion.span
+                    layoutId="nav-underline"
+                    style={{
+                      position: "absolute",
+                      bottom: 2,
+                      left: 12,
+                      right: 12,
+                      height: 1.5,
+                      background: "linear-gradient(90deg,#7c3aed,#ec4899)",
+                      borderRadius: 99,
+                    }}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </Link>
+            </motion.div>
+          );
+        })}
+
+        <motion.a
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.36, duration: 0.3 }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          href="https://github.com/AyushKar2005"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            color: "#c4b5fd",
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "8px 14px",
+            border: "1px solid rgba(167,139,250,0.22)",
+            borderRadius: 9,
+            background: "rgba(124,58,237,0.08)",
+            marginLeft: 6,
+            letterSpacing: "0.02em",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          GitHub
+        </motion.a>
+      </div>
+    </motion.nav>
+  );
+}
