@@ -17,6 +17,11 @@ export interface LayerConfig {
   activation: Activation;
 }
 
+export interface CsvInvalidSample {
+  rowNumber: number;
+  reason: string;
+}
+
 export interface CustomDatasetInfo {
   name: string;
   rows: number;
@@ -27,6 +32,11 @@ export interface CustomDatasetInfo {
   labelMap: Record<string, number>;
   xRange: [number, number];
   yRange: [number, number];
+  totalRows?: number;
+  delimiter?: string;
+  numericColumns?: string[];
+  labelValues?: string[];
+  invalidSamples?: CsvInvalidSample[];
 }
 
 export interface PlaygroundState {

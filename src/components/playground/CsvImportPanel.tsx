@@ -32,10 +32,13 @@ export function CsvImportPanel({ onReady }: { onReady: (data: DataPoint[], info:
       setXColumn(inferred.xColumn ?? "");
       setYColumn(inferred.yColumn ?? "");
       setLabelColumn(inferred.labelColumn ?? "");
-      setMessage(`Loaded ${parsed.rows.length} rows from ${file.name}. Columns were auto-detected.`);
+      setMessage(`Loaded ${parsed.rows.length} rows from ${file.name}. Delimiter: ${parsed.delimiter}. Columns were auto-detected.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not read CSV.");
       setTable(null);
+      setXColumn("");
+      setYColumn("");
+      setLabelColumn("");
     } finally {
       setLoading(false);
     }
@@ -54,16 +57,22 @@ export function CsvImportPanel({ onReady }: { onReady: (data: DataPoint[], info:
     }
   };
 
-  const select = (value: string, setter: (v: string) => void) => (
-    <select value={value} onChange={(e) => { setter(e.target.value); setActive(false); }} style={selectStyle}>
-      <option value="">Choose column</option>
-      {table?.headers.map((h) => <option key={h} value={h}>{h}</option>)}
-    </select>
-  );
+  const select = (value: string, setter: (v: string) => void, numericOnly = false) => {
+    const options = numericOnly && table
+      ? table.headers.filter((h) => validation.numericColumns.includes(h))
+      : table?.headers ?? [];
+
+    return (
+      <select value={value} onChange={(e) => { setter(e.target.value); setActive(false); }} style={selectStyle}>
+        <option value="">Choose column</option>
+        {options.map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+    );
+  };
 
   return (
     <div style={{ border: "1px solid #1e1e22", background: "rgba(255,255,255,0.018)", borderRadius: 10, padding: 10 }}>
-      <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])} />
+      <input ref={inputRef} type="file" accept=".csv,text/csv,.tsv,text/tab-separated-values" hidden onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])} />
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -83,7 +92,7 @@ export function CsvImportPanel({ onReady }: { onReady: (data: DataPoint[], info:
       >
         {loading ? "Reading CSV…" : "Drag CSV here or click to upload"}
         <div style={{ color: "#54545f", fontSize: 9, marginTop: 7, fontWeight: 500 }}>
-          2 numeric columns + 1 binary label column
+          any CSV · choose 2 numeric columns + 1 binary label
         </div>
       </div>
 
@@ -94,17 +103,29 @@ export function CsvImportPanel({ onReady }: { onReady: (data: DataPoint[], info:
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <StatusPill label="File" value={table.fileName} />
             <StatusPill label="Rows" value={String(table.rows.length)} />
+            <StatusPill label="Delimiter" value={table.delimiter} />
+            <StatusPill label="Numeric" value={String(validation.numericColumns.length)} good={validation.numericColumns.length >= 2} />
             <StatusPill label="Valid" value={String(validation.validRows)} good={!validation.error} />
             <StatusPill label="Skipped" value={String(validation.invalidRows)} warn={validation.invalidRows > 0} />
           </div>
 
-          <label style={labelStyle}>X column{select(xColumn, setXColumn)}</label>
-          <label style={labelStyle}>Y column{select(yColumn, setYColumn)}</label>
+          <label style={labelStyle}>X column{select(xColumn, setXColumn, true)}</label>
+          <label style={labelStyle}>Y column{select(yColumn, setYColumn, true)}</label>
           <label style={labelStyle}>Label column{select(labelColumn, setLabelColumn)}</label>
 
           <div style={{ fontSize: 10, color: validation.error ? "#fb923c" : active ? "#6ee7b7" : "#c4b5fd", lineHeight: 1.6 }}>
             {validation.error ?? (active ? "CSV dataset is active in the playground." : `${validation.validRows} valid rows · ${validation.invalidRows} invalid skipped · labels: ${validation.labelValues.join(" / ")}`)}
           </div>
+
+          {validation.invalidSamples.length > 0 && (
+            <div style={{ border: "1px solid #1e1e22", borderRadius: 8, padding: "7px 8px", background: "rgba(255,255,255,0.01)", display: "grid", gap: 4 }}>
+              {validation.invalidSamples.map((sample) => (
+                <div key={`${sample.rowNumber}-${sample.reason}`} style={{ fontSize: 9, color: "#6a6a78", lineHeight: 1.4 }}>
+                  row {sample.rowNumber}: {sample.reason}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ overflow: "auto", border: "1px solid #1e1e22", borderRadius: 8, maxHeight: 132 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9, color: "#71717a" }}>

@@ -3,9 +3,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PRESETS, generateDataset } from "@/lib/tf/datasets";
 import { buildExplainCards } from "@/lib/tf/explain";
-import { buildExperimentExport, copyExperimentSummary, downloadExperimentJson, exportCanvasPng } from "@/lib/tf/export";
+import {
+  buildExperimentExport,
+  copyExperimentSummary,
+  downloadExperimentJson,
+  exportCanvasPng,
+} from "@/lib/tf/export";
 import { trainer } from "@/lib/tf/trainer";
-import type { CustomDatasetInfo, DataPoint, Dataset, EpochSnapshot, PlaygroundState, PointInspection, PointPrediction, SavedRun, TrainingMetrics, TrainStepResult, ViewMode } from "@/lib/tf/types";
+import { deleteCloudRun, fetchCloudRuns, saveCloudRun } from "@/lib/client/runs";
+import { createShareLink, fetchSharedRun } from "@/lib/client/share";
+import type {
+  CustomDatasetInfo,
+  DataPoint,
+  Dataset,
+  EpochSnapshot,
+  LayerConfig,
+  PlaygroundState,
+  PointInspection,
+  PointPrediction,
+  SavedRun,
+  TrainingMetrics,
+  TrainStepResult,
+  ViewMode,
+} from "@/lib/tf/types";
 import type { PresetConfig } from "@/lib/tf/datasets";
 import { CenterPanel } from "@/components/playground/CenterPanel";
 import { LeftPanel } from "@/components/playground/LeftPanel";
@@ -29,8 +49,42 @@ const emptyMetrics: TrainingMetrics = {
   misclassifiedCount: 0,
 };
 
-const SAVED_RUNS_KEY = "axon:saved-runs:v2";
 const WIDTH_KEY = "axon:panel-widths:v2";
+
+function isDataset(value: unknown): value is Dataset {
+  return value === "xor" || value === "spiral" || value === "circles" || value === "blobs" || value === "custom";
+}
+
+function normalizeLayers(input: unknown): LayerConfig[] {
+  if (!Array.isArray(input) || input.length === 0) return PRESETS[1].layers;
+
+  if (typeof input[0] === "number") {
+    const nums = input.filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+    if (!nums.length) return PRESETS[1].layers;
+
+    return nums.map((neurons, index) => ({
+      id: Date.now() + index,
+      neurons,
+      activation: index === 0 ? "linear" : index === nums.length - 1 ? "sigmoid" : "relu",
+    }));
+  }
+
+  return input
+    .filter((layer): layer is Partial<LayerConfig> => typeof layer === "object" && layer !== null)
+    .map((layer, index) => ({
+      id: typeof layer.id === "number" ? layer.id : Date.now() + index,
+      neurons: typeof layer.neurons === "number" ? layer.neurons : index === 0 ? 2 : 4,
+      activation:
+        layer.activation === "relu" ||
+        layer.activation === "sigmoid" ||
+        layer.activation === "tanh" ||
+        layer.activation === "linear"
+          ? layer.activation
+          : index === 0
+            ? "linear"
+            : "relu",
+    }));
+}
 
 export default function PlaygroundLayout() {
   const [state, setState] = useState<PlaygroundState>({
@@ -59,12 +113,13 @@ export default function PlaygroundLayout() {
   const [pointInspection, setPointInspection] = useState<PointInspection | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("boundary");
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
   const needsSetupRef = useRef(true);
+  const sharedLoadedRef = useRef<string | null>(null);
 
-  const patch = useCallback(
-    (p: Partial<PlaygroundState>) => setState((prev) => ({ ...prev, ...p })),
-    [],
-  );
+  const patch = useCallback((p: Partial<PlaygroundState>) => {
+    setState((prev) => ({ ...prev, ...p }));
+  }, []);
 
   useEffect(() => {
     document.body.dataset.axonPlayground = "true";
@@ -73,10 +128,11 @@ export default function PlaygroundLayout() {
       const widths = JSON.parse(localStorage.getItem(WIDTH_KEY) ?? "null");
       if (widths?.left) setLeftWidth(widths.left);
       if (widths?.right) setRightWidth(widths.right);
-
-      const saved = JSON.parse(localStorage.getItem(SAVED_RUNS_KEY) ?? "[]") as SavedRun[];
-      setSavedRuns(Array.isArray(saved) ? saved : []);
     } catch {}
+
+    fetchCloudRuns()
+      .then((runs) => setSavedRuns(Array.isArray(runs) ? runs : []))
+      .catch(() => setSavedRuns([]));
 
     return () => {
       delete document.body.dataset.axonPlayground;
@@ -89,16 +145,11 @@ export default function PlaygroundLayout() {
     localStorage.setItem(WIDTH_KEY, JSON.stringify({ left: leftWidth, right: rightWidth }));
   }, [leftWidth, rightWidth]);
 
-  useEffect(() => {
-    localStorage.setItem(SAVED_RUNS_KEY, JSON.stringify(savedRuns));
-  }, [savedRuns]);
-
   const resetVisuals = useCallback(
     (next?: Partial<PlaygroundState>, customOverride?: DataPoint[]) => {
       trainer.stop();
       trainer.dispose();
       needsSetupRef.current = true;
-
       setGrid([]);
       setLossHistory([]);
       setWeights([]);
@@ -108,7 +159,6 @@ export default function PlaygroundLayout() {
       setInspectIndex(null);
       setSelectedPointIndex(null);
       setPointInspection(null);
-
       setState((prev) => {
         const merged = { ...prev, ...next, isTraining: false, epoch: 0, loss: null };
         const nextData =
@@ -142,7 +192,6 @@ export default function PlaygroundLayout() {
       setPredictions(result.predictions);
       setLossHistory((prev) => [...prev.slice(-239), result.loss]);
       setState((prev) => ({ ...prev, epoch: result.epoch, loss: result.loss }));
-
       setSnapshots((prev) => {
         if (result.epoch % 5 !== 0 && prev.length > 0) return prev;
         const snap: EpochSnapshot = {
@@ -155,7 +204,6 @@ export default function PlaygroundLayout() {
         };
         return [...prev.slice(-99), snap];
       });
-
       if (selectedPointIndex !== null) {
         setPointInspection(trainer.inspectPoint(selectedPointIndex, result.predictions[selectedPointIndex]));
       }
@@ -180,7 +228,6 @@ export default function PlaygroundLayout() {
       trainer.stop();
       return;
     }
-
     if (needsSetupRef.current || !trainer.getModel()) setupTrainer();
     trainer.train(applyResult);
     return () => trainer.stop();
@@ -238,7 +285,6 @@ export default function PlaygroundLayout() {
     (index: number) => {
       setSelectedPointIndex(index);
       const fallback = visiblePredictions[index];
-
       if (inspectIndex !== null && fallback) {
         setPointInspection({
           point: fallback,
@@ -248,16 +294,10 @@ export default function PlaygroundLayout() {
         });
         return;
       }
-
       setPointInspection(
         trainer.inspectPoint(index, fallback) ??
           (fallback
-            ? {
-                point: fallback,
-                activations: [],
-                output: fallback.probability,
-                source: "snapshot",
-              }
+            ? { point: fallback, activations: [], output: fallback.probability, source: "snapshot" }
             : null),
       );
     },
@@ -298,10 +338,68 @@ export default function PlaygroundLayout() {
 
   const datasetName = state.dataset === "custom" ? customDataset?.name ?? "custom csv" : state.dataset;
 
-  const handleSaveRun = useCallback(() => {
-    const run: SavedRun = {
+  const applySharedPayload = useCallback((payload: any) => {
+    const incoming = payload?.state ?? payload?.config ?? payload;
+    const dataset = isDataset(incoming?.dataset) ? incoming.dataset : "circles";
+    const layers = normalizeLayers(incoming?.layers);
+    const incomingSnapshots = Array.isArray(payload?.snapshots) ? payload.snapshots : [];
+    const latest = incomingSnapshots[incomingSnapshots.length - 1] as EpochSnapshot | undefined;
+    const customPoints = Array.isArray(payload?.customData) ? (payload.customData as DataPoint[]) : [];
+    const nextNoise = typeof incoming?.noise === "number" ? incoming.noise : 0.1;
+
+    trainer.stop();
+    trainer.dispose();
+    needsSetupRef.current = true;
+    setInspectIndex(null);
+    setSelectedPointIndex(null);
+    setPointInspection(null);
+
+    if (dataset === "custom" && customPoints.length) {
+      setCustomData(customPoints);
+      setCustomDataset(payload?.customDataset ?? null);
+      setData(customPoints);
+    } else {
+      setCustomData([]);
+      setCustomDataset(null);
+      setData(generateDataset(dataset, 200, nextNoise));
+    }
+
+    setState({
+      layers,
+      learningRate: typeof incoming?.learningRate === "number" ? incoming.learningRate : PRESETS[1].learningRate,
+      dataset,
+      noise: nextNoise,
+      isTraining: false,
+      epoch: typeof incoming?.epoch === "number" ? incoming.epoch : latest?.epoch ?? 0,
+      loss: typeof incoming?.loss === "number" ? incoming.loss : latest?.loss ?? null,
+    });
+
+    setSnapshots(incomingSnapshots);
+    setGrid(latest?.grid ?? []);
+    setWeights(latest?.weights ?? []);
+    setMetrics(payload?.metrics ?? payload?.latestMetrics ?? latest?.metrics ?? null);
+    setPredictions(payload?.predictions ?? payload?.latestPredictions ?? latest?.predictions ?? []);
+    setLossHistory(incomingSnapshots.map((s: EpochSnapshot) => s.loss));
+    setShareStatus("Shared run loaded.");
+  }, []);
+
+  useEffect(() => {
+    const shareId = new URLSearchParams(window.location.search).get("run");
+    if (!shareId || sharedLoadedRef.current === shareId) return;
+
+    sharedLoadedRef.current = shareId;
+    setShareStatus("Loading shared run…");
+
+    fetchSharedRun(shareId)
+      .then((run) => applySharedPayload((run as any).payload ?? run))
+      .catch(() => setShareStatus("Could not load shared run."));
+  }, [applySharedPayload]);
+
+  const handleSaveRun = useCallback(async () => {
+    const name = `${datasetName} · epoch ${displayEpoch}`;
+    const fallback: SavedRun = {
       id: `${Date.now()}`,
-      name: `${datasetName} · epoch ${displayEpoch}`,
+      name,
       createdAt: Date.now(),
       dataset: state.dataset,
       datasetName,
@@ -312,8 +410,90 @@ export default function PlaygroundLayout() {
       loss: displayLoss,
       metrics: visibleMetrics,
     };
-    setSavedRuns((prev) => [run, ...prev].slice(0, 8));
-  }, [datasetName, displayEpoch, displayLoss, state.dataset, state.layers, state.learningRate, state.noise, visibleMetrics]);
+
+    setShareStatus("Saving run…");
+
+    try {
+      const cloudRun = await saveCloudRun({
+        name,
+        dataset: state.dataset,
+        datasetName,
+        config: {
+          layers: state.layers,
+          learningRate: state.learningRate,
+          noise: state.noise,
+          epoch: displayEpoch,
+          loss: displayLoss,
+        },
+        metrics: visibleMetrics,
+        snapshots,
+        predictions: visiblePredictions,
+      });
+      setSavedRuns((prev) => [cloudRun, ...prev.filter((run) => run.id !== cloudRun.id)].slice(0, 8));
+      setShareStatus("Saved to cloud.");
+    } catch {
+      setSavedRuns((prev) => [fallback, ...prev].slice(0, 8));
+      setShareStatus("Cloud save failed. Kept in current session.");
+    }
+  }, [
+    datasetName,
+    displayEpoch,
+    displayLoss,
+    snapshots,
+    state.dataset,
+    state.layers,
+    state.learningRate,
+    state.noise,
+    visibleMetrics,
+    visiblePredictions,
+  ]);
+
+  const handleShareRun = useCallback(async () => {
+    const name = `${datasetName} · epoch ${displayEpoch}`;
+    setShareStatus("Creating share link…");
+
+    try {
+      const result = await createShareLink({
+        name,
+        dataset: state.dataset,
+        datasetName,
+        payload: {
+          version: 1,
+          state: {
+            ...state,
+            isTraining: false,
+            epoch: displayEpoch,
+            loss: displayLoss,
+          },
+          customDataset,
+          customData: state.dataset === "custom" ? customData : [],
+          metrics: visibleMetrics,
+          predictions: visiblePredictions,
+          snapshots,
+        },
+      });
+
+      const url = new URL(result.url, window.location.origin).toString();
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareStatus("Share link copied.");
+      } catch {
+        setShareStatus(url);
+      }
+    } catch {
+      setShareStatus("Could not create share link.");
+    }
+  }, [
+    customData,
+    customDataset,
+    datasetName,
+    displayEpoch,
+    displayLoss,
+    snapshots,
+    state,
+    visibleMetrics,
+    visiblePredictions,
+  ]);
 
   const handleExportJson = useCallback(
     () =>
@@ -335,34 +515,31 @@ export default function PlaygroundLayout() {
   }, [datasetName, displayEpoch, displayLoss, visibleMetrics]);
 
   useEffect(() => {
-    const isTyping = (target: EventTarget | null) => {
-      const el = target as HTMLElement | null;
+    const isTyping = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
       if (!el) return false;
       const tag = el.tagName.toLowerCase();
       return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
     };
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isTyping(event.target)) return;
-
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        handleSaveRun();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void handleSaveRun();
         return;
       }
-
-      if (event.code === "Space") {
-        event.preventDefault();
+      if (e.code === "Space") {
+        e.preventDefault();
         toggleTraining();
         return;
       }
-
-      const key = event.key.toLowerCase();
-      if (key === "r") resetVisuals();
-      if (key === "s") void handleStep();
-      if (key === "e") setViewMode("errors");
-      if (key === "g") setViewMode("gradients");
-      if (key === "b") setViewMode("boundary");
+      const k = e.key.toLowerCase();
+      if (k === "r") resetVisuals();
+      if (k === "s") void handleStep();
+      if (k === "e") setViewMode("errors");
+      if (k === "g") setViewMode("gradients");
+      if (k === "b") setViewMode("boundary");
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -371,7 +548,6 @@ export default function PlaygroundLayout() {
 
   return (
     <div
-      className="axon-playground-shell"
       style={{
         display: "flex",
         height: "100vh",
@@ -382,10 +558,7 @@ export default function PlaygroundLayout() {
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        /* ── Cursor resets ── */
         body[data-axon-playground="true"] #cursor,
         body[data-axon-playground="true"] #cursor-ring,
         body[data-axon-playground="true"] .custom-cursor,
@@ -393,488 +566,23 @@ export default function PlaygroundLayout() {
         body[data-axon-playground="true"] .cursor-ring,
         body[data-axon-playground="true"] [data-cursor],
         body[data-axon-playground="true"] nextjs-portal { display: none !important; }
-
         body[data-axon-playground="true"],
         body[data-axon-playground="true"] * { cursor: auto !important; }
-
         body[data-axon-playground="true"] button,
         body[data-axon-playground="true"] a,
         body[data-axon-playground="true"] input[type=range],
         body[data-axon-playground="true"] canvas { cursor: pointer !important; }
-
         body[data-axon-playground="true"] [role="separator"],
         body[data-axon-playground="true"] [role="separator"] * { cursor: col-resize !important; }
-
         body[data-axon-resizing="true"],
         body[data-axon-resizing="true"] * { user-select: none !important; cursor: col-resize !important; }
-
-        /* ── Range inputs ── */
-        input[type=range] {
-          -webkit-appearance: none;
-          height: 2px;
-          background: #1e1e26;
-          border-radius: 2px;
-          outline: none;
-          width: 100%;
-        }
-        input[type=range]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 11px; height: 11px;
-          border-radius: 50%;
-          background: #a78bfa;
-          cursor: pointer;
-          box-shadow: 0 0 0 3px rgba(167,139,250,0.12);
-          transition: box-shadow 0.15s;
-        }
-        input[type=range]:hover::-webkit-slider-thumb {
-          box-shadow: 0 0 0 5px rgba(167,139,250,0.18);
-        }
-        input[type=range]:disabled::-webkit-slider-thumb {
-          background: #3a3a48;
-          box-shadow: none;
-        }
-
-        /* ── Scrollbars ── */
+        input[type=range] { -webkit-appearance: none; height: 2px; background: #1e1e26; border-radius: 2px; outline: none; width: 100%; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #a78bfa; cursor: pointer; box-shadow: 0 0 0 3px rgba(167,139,250,0.12); transition: box-shadow 0.15s; }
+        input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(167,139,250,0.18); }
+        input[type=range]:disabled::-webkit-slider-thumb { background: #3a3a48; box-shadow: none; }
         ::-webkit-scrollbar { width: 3px; height: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1e1e28; border-radius: 2px; }
-
-        /* ── Panel surfaces ── */
-        .axon-panel {
-          background: #0e0e12;
-          border-right: 1px solid rgba(255,255,255,0.055);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-        .axon-panel-right {
-          background: #0e0e12;
-          border-left: 1px solid rgba(255,255,255,0.055);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        /* ── Panel section headers ── */
-        .axon-section-label {
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: #3a3a4a;
-          padding: 14px 16px 6px;
-          border-top: 1px solid rgba(255,255,255,0.04);
-        }
-        .axon-section-label:first-child { border-top: none; }
-
-        /* ── Preset cards ── */
-        .axon-preset-card {
-          margin: 4px 10px;
-          padding: 10px 13px;
-          border-radius: 10px;
-          border: 1px solid transparent;
-          background: transparent;
-          cursor: pointer;
-          text-align: left;
-          transition: background 0.15s, border-color 0.15s;
-          color: #f4f4f5;
-        }
-        .axon-preset-card:hover {
-          background: rgba(255,255,255,0.04);
-          border-color: rgba(255,255,255,0.06);
-        }
-        .axon-preset-card.active {
-          background: rgba(124,58,237,0.12);
-          border-color: rgba(167,139,250,0.22);
-        }
-
-        /* ── Dataset chips ── */
-        .axon-dataset-chip {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          padding: 8px 11px;
-          border-radius: 9px;
-          border: 1px solid rgba(255,255,255,0.06);
-          background: rgba(255,255,255,0.022);
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, transform 0.12s;
-          font-size: 12px;
-          color: #8a8a94;
-        }
-        .axon-dataset-chip:hover {
-          background: rgba(255,255,255,0.04);
-          border-color: rgba(255,255,255,0.10);
-          color: #d4d4d8;
-          transform: translateY(-1px);
-        }
-        .axon-dataset-chip.active {
-          background: rgba(124,58,237,0.12);
-          border-color: rgba(167,139,250,0.25);
-          color: #c4b5fd;
-        }
-
-        /* ── View mode buttons ── */
-        .axon-view-btn {
-          padding: 7px 14px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: transparent;
-          color: #5a5a68;
-          font-size: 12px;
-          font-family: 'Syne', sans-serif;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-          letter-spacing: 0.02em;
-        }
-        .axon-view-btn:hover {
-          background: rgba(255,255,255,0.05);
-          color: #a1a1aa;
-          border-color: rgba(255,255,255,0.12);
-        }
-        .axon-view-btn.active {
-          background: rgba(124,58,237,0.18);
-          border-color: rgba(167,139,250,0.35);
-          color: #c4b5fd;
-        }
-
-        /* ── Run / control buttons ── */
-        .axon-run-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 9px 20px;
-          border-radius: 9px;
-          border: 1px solid rgba(236,72,153,0.35);
-          background: rgba(236,72,153,0.12);
-          color: #f4f4f5;
-          font-size: 13px;
-          font-family: 'Syne', sans-serif;
-          font-weight: 700;
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
-          letter-spacing: 0.01em;
-        }
-        .axon-run-btn:hover {
-          background: rgba(236,72,153,0.20);
-          border-color: rgba(236,72,153,0.55);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 16px rgba(236,72,153,0.15);
-        }
-        .axon-run-btn:active { transform: translateY(0); }
-        .axon-run-btn.running {
-          background: rgba(236,72,153,0.18);
-          border-color: rgba(236,72,153,0.5);
-          box-shadow: 0 0 20px rgba(236,72,153,0.12);
-        }
-
-        .axon-ctrl-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.03);
-          color: #6a6a78;
-          font-size: 12px;
-          font-family: 'Syne', sans-serif;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-        .axon-ctrl-btn:hover {
-          background: rgba(255,255,255,0.06);
-          border-color: rgba(255,255,255,0.12);
-          color: #a1a1aa;
-          transform: translateY(-1px);
-        }
-        .axon-ctrl-btn:active { transform: translateY(0); }
-
-        /* ── Save run button ── */
-        .axon-save-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          padding: 8px 16px;
-          border-radius: 8px;
-          border: 1px solid rgba(167,139,250,0.28);
-          background: rgba(124,58,237,0.12);
-          color: #c4b5fd;
-          font-size: 12px;
-          font-family: 'Syne', sans-serif;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.15s;
-          letter-spacing: 0.02em;
-        }
-        .axon-save-btn:hover {
-          background: rgba(124,58,237,0.20);
-          border-color: rgba(167,139,250,0.45);
-          box-shadow: 0 4px 14px rgba(124,58,237,0.18);
-          transform: translateY(-1px);
-        }
-
-        /* ── Export buttons ── */
-        .axon-export-btn {
-          width: 100%;
-          padding: 10px 14px;
-          border-radius: 9px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.025);
-          color: #8a8a94;
-          font-size: 12px;
-          font-family: 'Syne', sans-serif;
-          font-weight: 600;
-          cursor: pointer;
-          text-align: left;
-          transition: all 0.15s;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-        }
-        .axon-export-btn:hover {
-          background: rgba(255,255,255,0.05);
-          border-color: rgba(255,255,255,0.12);
-          color: #d4d4d8;
-          transform: translateX(2px);
-        }
-
-        /* ── Metric rows ── */
-        .axon-metric-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 6px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.03);
-        }
-        .axon-metric-row:last-child { border-bottom: none; }
-        .axon-metric-label {
-          font-size: 11px;
-          color: #42424e;
-          letter-spacing: 0.03em;
-        }
-        .axon-metric-value {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 12px;
-          color: #c4c4cc;
-          font-weight: 500;
-        }
-        .axon-metric-value.highlight {
-          color: #a78bfa;
-        }
-
-        /* ── Header bar ── */
-        .axon-playground-shell main > header {
-          height: 64px !important;
-          min-height: 64px !important;
-          padding: 0 20px !important;
-          gap: 16px !important;
-          position: relative !important;
-          z-index: 40 !important;
-          overflow: visible !important;
-          display: grid !important;
-          grid-template-columns: minmax(340px, 1fr) auto !important;
-          align-items: center !important;
-          background: #0c0c0f !important;
-          border-bottom: 1px solid rgba(255,255,255,0.055) !important;
-        }
-
-        .axon-playground-shell main > header > div:first-child {
-          min-width: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 20px !important;
-          overflow: visible !important;
-        }
-
-        /* "Playground" wordmark */
-        .axon-playground-shell main > header > div:first-child > div:first-child {
-          font-size: 17px !important;
-          line-height: 1 !important;
-          white-space: nowrap !important;
-          flex-shrink: 0 !important;
-          font-weight: 800 !important;
-          letter-spacing: -0.04em !important;
-          color: #f4f4f5 !important;
-        }
-
-        /* subtitle / breadcrumb */
-        .axon-playground-shell main > header > div:first-child > div:nth-child(2) {
-          margin-top: 0 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          line-height: 1.1 !important;
-          max-width: 300px !important;
-          flex-shrink: 1 !important;
-          min-width: 120px !important;
-          font-size: 11px !important;
-          color: #42424e !important;
-          letter-spacing: 0.04em !important;
-          text-transform: uppercase !important;
-          font-weight: 600 !important;
-        }
-
-        /* Nav + controls on the right */
-        .axon-playground-shell main > header a,
-        .axon-playground-shell main > header nav,
-        .axon-playground-shell main > header button {
-          position: relative !important;
-          z-index: 999 !important;
-          pointer-events: auto !important;
-        }
-
-        .axon-playground-shell main > header > div:last-child {
-          display: flex !important;
-          align-items: center !important;
-          gap: 14px !important;
-          flex-shrink: 0 !important;
-          position: relative !important;
-          z-index: 60 !important;
-        }
-
-        /* Status badge */
-        .axon-status-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 5px 11px;
-          border-radius: 6px;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.07);
-          font-size: 11px;
-          font-family: 'JetBrains Mono', monospace;
-          color: #6a6a78;
-          letter-spacing: 0.04em;
-        }
-        .axon-status-badge .dot {
-          width: 6px; height: 6px;
-          border-radius: 50%;
-          background: #3a3a4a;
-          transition: background 0.3s;
-        }
-        .axon-status-badge.ready .dot { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.5); }
-        .axon-status-badge.training .dot {
-          background: #ec4899;
-          box-shadow: 0 0 6px rgba(236,72,153,0.6);
-          animation: axon-pulse-dot 0.9s ease-in-out infinite;
-        }
-
-        @keyframes axon-pulse-dot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(0.7); }
-        }
-
-        /* Epoch counter */
-        .axon-epoch-display {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 13px;
-          font-weight: 600;
-          color: #5a5a68;
-          letter-spacing: 0.08em;
-          min-width: 52px;
-          text-align: right;
-        }
-
-        /* Divider between header sections */
-        .axon-header-divider {
-          width: 1px;
-          height: 18px;
-          background: rgba(255,255,255,0.07);
-          flex-shrink: 0;
-        }
-
-        /* Nav links in header */
-        .axon-playground-shell main > header nav a {
-          font-size: 12px !important;
-          color: #42424e !important;
-          text-decoration: none !important;
-          transition: color 0.15s !important;
-          font-weight: 500 !important;
-          letter-spacing: 0.01em !important;
-        }
-        .axon-playground-shell main > header nav a:hover { color: #8a8a94 !important; }
-
-        /* CSV dropzone polish */
-        .axon-csv-zone {
-          margin: 8px 10px;
-          border: 1.5px dashed rgba(124,58,237,0.28);
-          border-radius: 12px;
-          padding: 18px 14px;
-          text-align: center;
-          cursor: pointer;
-          transition: border-color 0.2s, background 0.2s;
-          background: rgba(124,58,237,0.04);
-        }
-        .axon-csv-zone:hover {
-          border-color: rgba(124,58,237,0.5);
-          background: rgba(124,58,237,0.08);
-        }
-
-        /* Panel section inner padding */
-        .axon-panel-body { padding: 0 14px 10px; }
-
-        /* Explain card */
-        .axon-explain-card {
-          padding: 12px 14px;
-          margin: 0 10px 6px;
-          border-radius: 10px;
-          border: 1px solid rgba(255,255,255,0.06);
-          background: rgba(255,255,255,0.02);
-          transition: border-color 0.2s, background 0.2s;
-        }
-        .axon-explain-card:hover {
-          border-color: rgba(167,139,250,0.18);
-          background: rgba(124,58,237,0.05);
-        }
-        .axon-explain-card-title {
-          font-size: 11px;
-          font-weight: 700;
-          color: #a78bfa;
-          margin-bottom: 4px;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .axon-explain-card-body {
-          font-size: 12px;
-          color: #6a6a78;
-          line-height: 1.55;
-        }
-
-        /* Saved run cards */
-        .axon-run-card {
-          padding: 10px 12px;
-          margin: 0 10px 5px;
-          border-radius: 9px;
-          border: 1px solid rgba(255,255,255,0.05);
-          background: rgba(255,255,255,0.018);
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 8px;
-          transition: border-color 0.15s, background 0.15s;
-        }
-        .axon-run-card:hover {
-          border-color: rgba(255,255,255,0.09);
-          background: rgba(255,255,255,0.03);
-        }
-
-        /* Always show playground layout */
-        .axon-desktop-fallback { display: none !important; }
-        .axon-playground-shell { display: flex !important; }
-
-        @media (max-width: 1280px) {
-          .axon-playground-shell main > header {
-            grid-template-columns: minmax(280px, 1fr) auto !important;
-            padding: 0 16px !important;
-          }
-          .axon-playground-shell main > header > div:first-child { gap: 14px !important; }
-          .axon-playground-shell main > header > div:first-child > div:nth-child(2) { max-width: 200px !important; }
-          .axon-playground-shell main > header > div:last-child { gap: 10px !important; }
-        }
       `}</style>
 
       <LeftPanel
@@ -933,7 +641,12 @@ export default function PlaygroundLayout() {
         savedRuns={savedRuns}
         customDataset={customDataset}
         onSaveRun={handleSaveRun}
-        onRemoveRun={(id) => setSavedRuns((prev) => prev.filter((run) => run.id !== id))}
+        onRemoveRun={async (id) => {
+          setSavedRuns((prev) => prev.filter((r) => r.id !== id));
+          try {
+            await deleteCloudRun(id);
+          } catch {}
+        }}
         onClearInspection={() => {
           setSelectedPointIndex(null);
           setPointInspection(null);
@@ -941,6 +654,8 @@ export default function PlaygroundLayout() {
         onExportJson={handleExportJson}
         onExportScreenshot={() => exportCanvasPng()}
         onCopySummary={handleCopySummary}
+        onShareRun={handleShareRun}
+        shareStatus={shareStatus}
       />
     </div>
   );
