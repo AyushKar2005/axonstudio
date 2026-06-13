@@ -1,8 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function LandingNav() {
+  const pathname = usePathname();
+
+  const navItems = [
+    ["/", "Home"],
+    ["/playground", "Playground"],
+    ["/docs", "Docs"],
+    ["/examples", "Examples"],
+    ["/experiments", "Experiments"],
+  ];
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
   return (
     <nav
       style={{
@@ -24,6 +40,51 @@ export default function LandingNav() {
         boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
       }}
     >
+      <style>{`
+        .axon-nav-link {
+          position: relative;
+          color: #8a8a94;
+          text-decoration: none;
+          font-size: 12px;
+          font-weight: 650;
+          padding: 8px 0;
+          transition: color 0.18s ease;
+        }
+
+        .axon-nav-link::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 2px;
+          height: 1px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #7c3aed, #ec4899);
+          transform: scaleX(0);
+          transform-origin: center;
+          opacity: 0;
+          transition: transform 0.18s ease, opacity 0.18s ease;
+        }
+
+        .axon-nav-link:hover {
+          color: #f4f4f5;
+        }
+
+        .axon-nav-link:hover::after {
+          transform: scaleX(1);
+          opacity: 0.65;
+        }
+
+        .axon-nav-link-active {
+          color: #f4f4f5;
+        }
+
+        .axon-nav-link-active::after {
+          transform: scaleX(1);
+          opacity: 1;
+        }
+      `}</style>
+
       <Link
         href="/"
         style={{
@@ -38,15 +99,23 @@ export default function LandingNav() {
             width: 30,
             height: 30,
             borderRadius: 9,
-            background: "linear-gradient(135deg,#7c3aed,#ec4899)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "white",
-            fontWeight: 800,
+            overflow: "hidden",
+            background: "#09090d",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 8px 24px rgba(124,58,237,0.24)",
+            flexShrink: 0,
           }}
         >
-          a
+          <img
+            src="/brand/axon-icon.png"
+            alt="Axon Studio"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
         </div>
 
         <span
@@ -62,22 +131,11 @@ export default function LandingNav() {
       </Link>
 
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-        {[
-          ["/", "Home"],
-          ["/playground", "Playground"],
-          ["/docs", "Docs"],
-          ["/examples", "Examples"],
-          ["/experiments", "Experiments"],
-        ].map(([href, label]) => (
+        {navItems.map(([href, label]) => (
           <Link
             key={href}
             href={href}
-            style={{
-              color: "#8a8a94",
-              textDecoration: "none",
-              fontSize: 12,
-              fontWeight: 650,
-            }}
+            className={`axon-nav-link ${isActive(href) ? "axon-nav-link-active" : ""}`}
           >
             {label}
           </Link>
@@ -87,12 +145,7 @@ export default function LandingNav() {
           href="https://github.com/AyushKar2005"
           target="_blank"
           rel="noreferrer"
-          style={{
-            color: "#8a8a94",
-            textDecoration: "none",
-            fontSize: 12,
-            fontWeight: 650,
-          }}
+          className="axon-nav-link"
         >
           GitHub
         </a>

@@ -50,27 +50,58 @@ export function LeftPanel({ state, width, customDataset, onPatch, onDatasetSelec
         zIndex: 2,
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 7,
-            background: "linear-gradient(135deg,#7c3aed,#ec4899)",
-            display: "grid", placeItems: "center",
-            boxShadow: "0 4px 12px rgba(124,58,237,0.28)",
-            flexShrink: 0,
-          }}>
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <circle cx="3" cy="7" r="2" fill="white" />
-              <circle cx="11" cy="3" r="1.5" fill="white" opacity="0.72" />
-              <circle cx="11" cy="11" r="1.5" fill="white" opacity="0.72" />
-              <line x1="5" y1="6.5" x2="9.5" y2="3.5" stroke="white" strokeWidth="1.2" />
-              <line x1="5" y1="7.5" x2="9.5" y2="10.5" stroke="white" strokeWidth="1.2" />
-            </svg>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 750, color: "#e8e8ea", letterSpacing: "-0.02em" }}>axon studio</div>
-            <div style={{ fontSize: 8, color: "#2e2e3a", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 1 }}>Neural Network Lab</div>
-          </div>
-        </div>
+<div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+  <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      overflow: "hidden",
+      background: "#0b0b10",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 6px 18px rgba(124,58,237,0.22)",
+      flexShrink: 0,
+      position: "relative",
+    }}
+  >
+    <img
+      src="/brand/axon-icon.png"
+      alt="Axon Studio"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+      }}
+    />
+  </div>
+
+  <div>
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 750,
+        color: "#e8e8ea",
+        letterSpacing: "-0.02em",
+        lineHeight: 1,
+      }}
+    >
+      axon studio
+    </div>
+
+    <div
+      style={{
+        fontSize: 8,
+        color: "#2e2e3a",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        marginTop: 4,
+      }}
+    >
+      Neural Network Lab
+    </div>
+  </div>
+</div>
       </div>
 
       {/* ── Sections ── */}

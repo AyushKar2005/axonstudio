@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PRESETS, generateDataset } from "@/lib/tf/datasets";
 import { buildExplainCards } from "@/lib/tf/explain";
 import {
@@ -115,6 +116,8 @@ export default function PlaygroundLayout() {
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const needsSetupRef = useRef(true);
+  const searchParams = useSearchParams();
+  const exampleAppliedRef = useRef<string | null>(null);
   const sharedLoadedRef = useRef<string | null>(null);
 
   const patch = useCallback((p: Partial<PlaygroundState>) => {
@@ -252,6 +255,21 @@ export default function PlaygroundLayout() {
     },
     [resetVisuals],
   );
+  useEffect(() => {
+  const sharedRun = searchParams.get("run");
+  if (sharedRun) return;
+
+  const exampleId = searchParams.get("example");
+  if (!exampleId) return;
+  if (exampleAppliedRef.current === exampleId) return;
+
+  const preset = PRESETS.find((p) => p.id === exampleId);
+
+  if (!preset) return;
+
+  exampleAppliedRef.current = exampleId;
+  applyPreset(preset);
+}, [applyPreset, searchParams]);
 
   const handleCustomDatasetReady = useCallback(
     (incoming: DataPoint[], info: CustomDatasetInfo) => {

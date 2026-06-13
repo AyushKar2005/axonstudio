@@ -489,33 +489,112 @@ export default function HomePage() {
       <main style={{ minHeight: "100vh", background: "#08080a", color: "#f4f4f5", overflow: "hidden" }}>
         <LandingNav />
 
-        {/* ── HERO ── */}
-        <section style={{ minHeight: "100vh", position: "relative", padding: "0 68px", display: "flex", alignItems: "center" }}>
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "radial-gradient(circle at 12% 18%, rgba(236,72,153,0.08), transparent 18%), radial-gradient(circle at 70% 85%, rgba(124,58,237,0.18), transparent 22%), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px)",
-            backgroundSize: "auto, auto, 72px 72px, 72px 72px",
-            maskImage: "linear-gradient(180deg, black, black 72%, transparent)",
-          }} />
-          <div style={{ position: "absolute", inset: 0, left: "36%" }}>
-            <NeuralField />
-          </div>
-          <div style={{ position: "relative", zIndex: 2, width: "100%", paddingTop: 80 }}>
-            <p style={{ color: "#8a8a94", fontSize: 16, marginBottom: 20 }}>Totally Free</p>
-            <div style={{ width: 86, height: 1, background: "linear-gradient(90deg,#ec4899,transparent)", marginBottom: 42 }} />
-            <h1 style={{ fontSize: "clamp(116px, 22vw, 270px)", lineHeight: 0.72, letterSpacing: "-0.13em", fontWeight: 900, color: "#fff", marginBottom: 70, textShadow: "0 14px 80px rgba(255,255,255,0.08)" }}>
-              Axon
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-              <Link href="/playground" style={{ display: "inline-flex", alignItems: "center", gap: 16, height: 72, padding: "0 22px 0 34px", minWidth: 286, borderRadius: 10, color: "#f4f4f5", textDecoration: "none", fontWeight: 850, border: "1px solid rgba(236,72,153,0.48)", background: "linear-gradient(135deg, rgba(236,72,153,0.20), rgba(124,58,237,0.11))", boxShadow: "0 0 52px rgba(236,72,153,0.13)" }}>
-                Launch playground
-                <span style={{ marginLeft: "auto", width: 42, height: 42, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(236,72,153,0.45)" }}>→</span>
-              </Link>
-              <span style={{ color: "#52525b", fontSize: 15 }}>No setup · runs in your browser</span>
-            </div>
-          </div>
-        </section>
+{/* ── HERO ── */}
+<section
+  style={{
+    minHeight: "100vh",
+    position: "relative",
+    padding: "0 68px",
+    display: "flex",
+    alignItems: "center",
+  }}
+>
+  <div
+    style={{
+      position: "absolute",
+      inset: 0,
+      background:
+        "radial-gradient(circle at 12% 18%, rgba(236,72,153,0.08), transparent 18%), radial-gradient(circle at 70% 85%, rgba(124,58,237,0.18), transparent 22%), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px)",
+      backgroundSize: "auto, auto, 72px 72px, 72px 72px",
+      maskImage: "linear-gradient(180deg, black, black 72%, transparent)",
+    }}
+  />
 
+  <div style={{ position: "absolute", inset: 0, left: "43%" }}>
+    <NeuralField />
+  </div>
+
+  <div
+    style={{
+      position: "relative",
+      zIndex: 2,
+      width: "100%",
+      maxWidth: 720,
+      paddingTop: 80,
+    }}
+  >
+
+    <p style={{ color: "#8a8a94", fontSize: 16, marginBottom: 20 }}>
+      Totally Free
+    </p>
+
+    <div
+      style={{
+        width: 86,
+        height: 1,
+        background: "linear-gradient(90deg,#ec4899,transparent)",
+        marginBottom: 42,
+      }}
+    />
+
+    <h1
+      style={{
+        fontSize: "clamp(88px, 13vw, 178px)",
+        lineHeight: 0.76,
+        letterSpacing: "-0.095em",
+        fontWeight: 900,
+        color: "#fff",
+        margin: 0,
+        marginBottom: 58,
+        maxWidth: 690,
+        textShadow: "0 14px 80px rgba(255,255,255,0.08)",
+      }}
+    >
+      Axon
+    </h1>
+
+    <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+      <Link
+        href="/playground"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 16,
+          height: 72,
+          padding: "0 22px 0 34px",
+          minWidth: 286,
+          borderRadius: 10,
+          color: "#f4f4f5",
+          textDecoration: "none",
+          fontWeight: 850,
+          border: "1px solid rgba(236,72,153,0.48)",
+          background:
+            "linear-gradient(135deg, rgba(236,72,153,0.20), rgba(124,58,237,0.11))",
+          boxShadow: "0 0 52px rgba(236,72,153,0.13)",
+        }}
+      >
+        Launch playground
+        <span
+          style={{
+            marginLeft: "auto",
+            width: 42,
+            height: 42,
+            borderRadius: 9,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(236,72,153,0.45)",
+          }}
+        >
+          →
+        </span>
+      </Link>
+
+      <span style={{ color: "#52525b", fontSize: 15 }}>
+        No setup · runs in your browser
+      </span>
+    </div>
+  </div>
+</section>
         {/* ── TICKER ── */}
         <section style={{ borderTop: "1px solid rgba(255,255,255,0.065)", borderBottom: "1px solid rgba(255,255,255,0.065)", padding: "18px 0", overflow: "hidden" }}>
           <div className="stat-ticker-inner" style={{ display: "inline-flex", whiteSpace: "nowrap", color: "#73737f", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", gap: 48, paddingLeft: 48 }}>

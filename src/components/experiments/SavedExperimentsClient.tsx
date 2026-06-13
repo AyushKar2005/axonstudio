@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence ,type Variants} from "framer-motion";
 import type { SavedRun } from "@/lib/tf/types";
 import { deleteCloudRun, fetchCloudRuns } from "@/lib/client/runs";
 import {
@@ -14,15 +14,32 @@ import {
   pageWrap,
 } from "@/components/site/PageShell";
 
-const runVariants = {
-  hidden: { opacity: 0, y: 16, scale: 0.98 },
+const runVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 16,
+    scale: 0.98,
+  },
+
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { delay: i * 0.055, duration: 0.36, ease: [0.22, 1, 0.36, 1] },
+    transition: {
+      delay: i * 0.055,
+      duration: 0.36,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
   }),
-  exit: { opacity: 0, x: -18, scale: 0.97, transition: { duration: 0.2 } },
+
+  exit: {
+    opacity: 0,
+    x: -18,
+    scale: 0.97,
+    transition: {
+      duration: 0.2,
+    },
+  },
 };
 
 export default function SavedExperimentsClient() {

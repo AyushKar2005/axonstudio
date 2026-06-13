@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence,type Variants } from "framer-motion";
 import SiteNav from "@/components/site/SiteNav";
 
 // ─── ALL sections — every sidebar item maps to one of these ids ───────────────
@@ -282,14 +282,26 @@ const groups = [
 // Build a quick lookup: id → section
 const sectionById = Object.fromEntries(sections.map((s) => [s.id, s]));
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
+
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.05, duration: 0.36, ease: [0.22, 1, 0.36, 1] },
+    transition: {
+      delay: i * 0.05,
+      duration: 0.36,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
   }),
-  exit: { opacity: 0, y: -8, transition: { duration: 0.16 } },
+
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: {
+      duration: 0.16,
+    },
+  },
 };
 
 export default function DocsPage() {

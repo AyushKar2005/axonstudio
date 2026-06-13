@@ -36,33 +36,53 @@ export default function SiteNav() {
       }}
     >
       {/* Logo */}
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-        <motion.div
-          whileHover={{ scale: 1.08, rotate: 6 }}
-          transition={{ type: "spring", stiffness: 400, damping: 18 }}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 9,
-            background: "linear-gradient(135deg,#7c3aed,#ec4899)",
-            display: "grid",
-            placeItems: "center",
-            boxShadow: "0 8px 24px rgba(124,58,237,0.28)",
-            flexShrink: 0,
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-            <circle cx="3" cy="7" r="2" fill="white" />
-            <circle cx="11" cy="3" r="1.5" fill="white" opacity="0.72" />
-            <circle cx="11" cy="11" r="1.5" fill="white" opacity="0.72" />
-            <line x1="5" y1="6.5" x2="9.5" y2="3.5" stroke="white" strokeWidth="1.2" />
-            <line x1="5" y1="7.5" x2="9.5" y2="10.5" stroke="white" strokeWidth="1.2" />
-          </svg>
-        </motion.div>
-        <span style={{ color: "#f4f4f5", fontWeight: 760, fontSize: 15, letterSpacing: "-0.03em" }}>
-          axon studio
-        </span>
-      </Link>
+<Link
+  href="/"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    textDecoration: "none",
+  }}
+>
+  <motion.div
+    whileHover={{ scale: 1.08, rotate: 4 }}
+    transition={{ type: "spring", stiffness: 400, damping: 18 }}
+    style={{
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      overflow: "hidden",
+      background: "#09090d",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 8px 24px rgba(124,58,237,0.24)",
+      flexShrink: 0,
+    }}
+  >
+    <img
+      src="/brand/axon-icon.png"
+      alt="Axon Studio"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+      }}
+    />
+  </motion.div>
+
+  <span
+    style={{
+      color: "#f4f4f5",
+      fontWeight: 760,
+      fontSize: 15,
+      letterSpacing: "-0.03em",
+      lineHeight: 1,
+    }}
+  >
+    axon studio
+  </span>
+</Link>
 
       {/* Links */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
