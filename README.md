@@ -4,7 +4,7 @@ Axon Studio is a modern browser-based machine learning playground built for visu
 
 It is inspired by tools like TensorFlow Playground, but takes the idea further by focusing not only on the final model output, but also on the internal learning process. Axon Studio helps users see how a neural network learns through decision boundaries, misclassification debugging, train/test metrics, gradient flow, epoch snapshots, CSV import, saved experiments, and exportable runs.
 
-The project runs completely client-side using TensorFlow.js, so users do not need a GPU, backend server, or local ML environment to experiment with neural networks.
+The project runs completely client-side using TensorFlow.js, so users do not need a GPU, backend server, or local ML environment to experiment with neural networks
 
 ---
 
